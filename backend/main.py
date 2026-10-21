@@ -1,5 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+import httpx
+
+from backend.services.github_service import get_pull_request_files
 
 app = FastAPI(
     title="AI Code Review Agent",
@@ -22,3 +25,26 @@ def create_review(request: ReviewRequest):
             "status":"pending",
             "message": "Review request received"
         }
+
+@app.get("/github/{owner}/{repo}/pulls/{pull_number}/files")
+async def list_pr_files(owner: str, repo: str, pull_number: int):
+    try:
+        files = await get_pull_request_files(owner, repo, pull_number)
+        return {
+            "repository": f"{owner}/{repo}",
+            "pull_request_number": pull_number,
+            "files_count": len(files),
+            "files": files
+        }
+    except httpx.HTTPError as e:
+        status=e.response.status_code
+
+        raise HTTPException(
+            status_code=status if status in (403,404,429) else 502,
+            detail="GitHub API request failed"
+        )
+    except httpx.RequestError:
+        raise HTTPException(
+            status_code=502,
+            detail="Could not connect to GitHub API"
+        )
