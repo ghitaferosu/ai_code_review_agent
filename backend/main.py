@@ -1,6 +1,10 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import httpx
+from backend.models.analysis_models import (
+AnalyzeCodeRequest, AnalysisResponse
+)
+from backend.services.static_analyzer import analyze_python_code
 
 from backend.services.github_service import get_pull_request_files
 
@@ -48,3 +52,12 @@ async def list_pr_files(owner: str, repo: str, pull_number: int):
             status_code=502,
             detail="Could not connect to GitHub API"
         )
+
+@app.post("/analysis/python",response_model=AnalysisResponse)
+def analyze_python(request: AnalyzeCodeRequest):
+    issues=analyze_python_code(request.code)
+    return AnalysisResponse(
+        language="python",
+        issues_count=len(issues),
+        issues=issues
+    )
