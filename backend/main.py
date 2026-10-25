@@ -7,6 +7,7 @@ AnalyzeCodeRequest, AnalysisResponse
 from backend.services.static_analyzer import analyze_python_code
 
 from backend.services.github_service import get_pull_request_files
+from backend.services.pr_review_service import review_pull_request
 
 app = FastAPI(
     title="AI Code Review Agent",
@@ -61,3 +62,43 @@ def analyze_python(request: AnalyzeCodeRequest):
         issues_count=len(issues),
         issues=issues
     )
+
+@app.post("/reviews/static")
+async def create_static_review(request: ReviewRequest):
+    try:
+        parts=request.repository.split("/")
+        if(
+            len(parts)!=2
+            or not all(parts)
+            or request.pull_request_number<1
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Expected owner/repository and positive PR number"
+            )
+
+        owner, repo = parts
+
+        return await review_pull_request(owner, repo, request.pull_request_number)
+
+    except httpx.HTTPStatusError as e:
+        print("GitHub API ERROR", flush=True)
+        print("URL:", e.request.url, flush=True)
+        print("STATUS:", e.response.status_code, flush=True)
+        print("MESSAGE:", e.response.text[:500], flush=True)
+
+        raise HTTPException(
+            status_code=502,
+            detail="GitHub API request failed"
+        )
+
+    except httpx.RequestError:
+        raise HTTPException(
+            status_code=502,
+            detail="Could not connect to GitHub API"
+        )
+    except (ValueError, UnicodeDecodeError) as e:
+        raise HTTPException(
+            status_code=502,
+            detail=str(e)
+        )
