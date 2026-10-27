@@ -9,8 +9,10 @@ from sklearn.pipeline import Pipeline
 
 from backend.ml.dataset_loader import load_dataset
 
-DATASET_PATH = Path('../../data/raw/code_samples.csv')
-MODEL_PATH = Path('models/code_risk_model.joblib')
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+DATASET_PATH = PROJECT_ROOT / "data/raw/code_samples.csv"
+MODEL_PATH = PROJECT_ROOT / "models/code_risk_model.joblib"
 
 
 def create_model():
@@ -52,7 +54,7 @@ def train_model():
     print("train samples:",len(X_train))
     print("test samples:",len(X_test))
 
-    print("\n accuracy:", accuracy_score(y_test, predictions),3)
+    print("\n accuracy:", round(accuracy_score(y_test, predictions),3))
     print("\n classification report:")
     print(
         classification_report(
@@ -72,7 +74,10 @@ def train_model():
 
     baseline_predictions=baseline.predict(X_test.to_frame())
 
-    print("\n baseline accuracy:",baseline.score(y_test, baseline_predictions),3)
+    print(
+        "Baseline accuracy:",
+        accuracy_score(y_test, baseline_predictions)
+    )
 
     MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
 
