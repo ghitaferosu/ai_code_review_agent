@@ -59,7 +59,7 @@ def train_model():
             y_test,
             predictions,
             labels=[0, 1],
-            target_names=["risky","not risky"],
+            target_names=["not risky","risky"],
             zero_division=0
         )
     )
