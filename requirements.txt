@@ -1,4 +1,5 @@
 fastapi[standard]
 httpx
 pytest
+pandas
 pytest-asyncio
