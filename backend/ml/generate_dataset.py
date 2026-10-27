@@ -1,7 +1,7 @@
 import csv
 from pathlib import Path
 
-DATASET_PATH = Path("data/raw/code_samples.csv")
+DATASET_PATH = Path("../../data/raw/code_samples.csv")
 
 # labels: 1-risky, 0-not risky
 

@@ -3,3 +3,5 @@ httpx
 pytest
 pandas
 pytest-asyncio
+scikit-learn
+joblib

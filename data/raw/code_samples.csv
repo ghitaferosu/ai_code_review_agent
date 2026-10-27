@@ -1,0 +1,43 @@
+code,label,family,source
+result=eval(user_input),1,dynamic_execution,manual_dataset_v1
+answer=eval(expression),1,dynamic_execution,manual_dataset_v1
+output=eval(request_data),1,dynamic_execution,manual_dataset_v1
+value=int(user_input),0,dynamic_execution,manual_dataset_v1
+result=float(expression),0,dynamic_execution,manual_dataset_v1
+answer=str(request_data),0,dynamic_execution,manual_dataset_v1
+"password=""secret""",1,credentials,manual_dataset_v1
+"secret=""private_key""",1,credentials,manual_dataset_v1
+"passwd=""admin123""",1,credentials,manual_dataset_v1
+"password=os.getenv(""PASSWORD"")",0,credentials,manual_dataset_v1
+"secret=os.environ[""APP_SECRET""]",0,credentials,manual_dataset_v1
+passwd=getpass.getpass(),0,credentials,manual_dataset_v1
+"try:
+    execute()
+except:
+    pass",1,exceptions,manual_dataset_v1
+"try:
+    save()
+except:
+    log_error()",1,exceptions,manual_dataset_v1
+"try:
+    load()
+except:
+    return None",1,exceptions,manual_dataset_v1
+"try:
+    execute()
+except ValueError:
+    pass",0,exceptions,manual_dataset_v1
+"try:
+    save()
+except OSError:
+    log_error()",0,exceptions,manual_dataset_v1
+"try:
+    load()
+except KeyError:
+    return None",0,exceptions,manual_dataset_v1
+"subprocess.run(command, shell=True)",1,subprocess,manual_dataset_v1
+"subprocess.call(command, shell=True)",1,subprocess,manual_dataset_v1
+"subprocess.Popen(args, shell=True)",1,subprocess,manual_dataset_v1
+"subprocess.run([""echo"",""hello""], shell=False)",0,subprocess,manual_dataset_v1
+"subprocess.call([""ls"",""-l""], shell=False)",0,subprocess,manual_dataset_v1
+"subprocess.Popen([""python"",""--version""], shell=False)",0,subprocess,manual_dataset_v1
