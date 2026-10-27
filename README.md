@@ -41,3 +41,9 @@ python -m uvicorn backend.main:app --reload
 
 API documentation:
 http://127.0.0.1:8000/docs
+
+### FIRST EXPERIMENT
+
+* **Baseline**: TF-IDF + Logistic Regression
+* **Accuracy**: 33.3% (on 6 synthetic samples)
+* **Note**: preliminary results only; not representative of real-word vulnerability detection
