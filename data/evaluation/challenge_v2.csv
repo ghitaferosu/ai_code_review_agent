@@ -1,0 +1,21 @@
+id,family,code,label
+C001,dynamic_eval,"fn=eval
+result=fn(data)",1
+C002,dynamic_eval,"import json
+result=json.loads(data)",0
+C003,shell_alias,"import subprocess as sp
+sp.run(command,shell=True)",1
+C004,shell_alias,"import subprocess as sp
+sp.run([""ls"",""-l""])",0
+C005,credentials,"api_key=""secret123""",1
+C006,credentials,"api_key=os.getenv(""API_KEY"")",0
+C007,exceptions,"try:
+    process()
+except BaseException:
+    pass",1
+C008,exceptions,"try:
+    process()
+except ValueError:
+    handle()",0
+C009,dynamic_exec,exec(user_code),1
+C010,dynamic_exec,print(user_code),0

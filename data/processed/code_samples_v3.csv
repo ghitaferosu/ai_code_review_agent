@@ -1,0 +1,78 @@
+id,code,label,family,group_id,source
+V3_001,exec(payload),1,dynamic_execution,dynamic_execution_1,synthetic_manual_v3
+V3_002,print(payload),0,dynamic_execution,dynamic_execution_1,synthetic_manual_v3
+V3_003,exec(source),1,dynamic_execution,dynamic_execution_2,synthetic_manual_v3
+V3_004,"compile(source, '<src>', 'exec')",0,dynamic_execution,dynamic_execution_2,synthetic_manual_v3
+V3_005,"fn = eval
+fn(data)",1,dynamic_execution,dynamic_execution_3,synthetic_manual_v3
+V3_006,"fn = int
+fn(data)",0,dynamic_execution,dynamic_execution_3,synthetic_manual_v3
+V3_007,"runner = eval
+runner(text)",1,dynamic_execution,dynamic_execution_4,synthetic_manual_v3
+V3_008,"runner = str
+runner(text)",0,dynamic_execution,dynamic_execution_4,synthetic_manual_v3
+V3_009,"import subprocess as sp
+sp.run(cmd, shell=True)",1,subprocess,subprocess_1,synthetic_manual_v3
+V3_010,"import subprocess as sp
+sp.run(cmd, shell=False)",0,subprocess,subprocess_1,synthetic_manual_v3
+V3_011,"import subprocess
+subprocess.Popen(cmd, shell=True)",1,subprocess,subprocess_2,synthetic_manual_v3
+V3_012,"import subprocess
+subprocess.Popen(['ls', '-l'])",0,subprocess,subprocess_2,synthetic_manual_v3
+V3_013,"import subprocess as proc
+proc.call(cmd, shell=True)",1,subprocess,subprocess_3,synthetic_manual_v3
+V3_014,"import subprocess as proc
+proc.call(['pwd'])",0,subprocess,subprocess_3,synthetic_manual_v3
+V3_015,"import subprocess
+subprocess.run(task, shell=True)",1,subprocess,subprocess_4,synthetic_manual_v3
+V3_016,"import subprocess
+subprocess.run(['echo', 'ok'])",0,subprocess,subprocess_4,synthetic_manual_v3
+V3_017,"api_key = ""example-secret-001""",1,credentials,credentials_1,synthetic_manual_v3
+V3_018,"api_key = os.getenv(""API_KEY"")",0,credentials,credentials_1,synthetic_manual_v3
+V3_019,"password = ""example-pass-002""",1,credentials,credentials_2,synthetic_manual_v3
+V3_020,"password = os.environ[""PASSWORD""]",0,credentials,credentials_2,synthetic_manual_v3
+V3_021,"secret = ""example-token-003""",1,credentials,credentials_3,synthetic_manual_v3
+V3_022,secret = getpass.getpass(),0,credentials,credentials_3,synthetic_manual_v3
+V3_023,"api_token = ""example-key-004""",1,credentials,credentials_4,synthetic_manual_v3
+V3_024,"api_token = os.getenv(""API_TOKEN"")",0,credentials,credentials_4,synthetic_manual_v3
+V3_025,"try:
+    work()
+except:
+    pass",1,exceptions,exceptions_1,synthetic_manual_v3
+V3_026,"try:
+    work()
+except ValueError:
+    pass",0,exceptions,exceptions_1,synthetic_manual_v3
+V3_027,"try:
+    save()
+except BaseException:
+    pass",1,exceptions,exceptions_2,synthetic_manual_v3
+V3_028,"try:
+    save()
+except OSError:
+    handle()",0,exceptions,exceptions_2,synthetic_manual_v3
+V3_029,"try:
+    process()
+except:
+    log()",1,exceptions,exceptions_3,synthetic_manual_v3
+V3_030,"try:
+    process()
+except TypeError:
+    log()",0,exceptions,exceptions_3,synthetic_manual_v3
+V3_031,"try:
+    fetch()
+except BaseException:
+    log()",1,exceptions,exceptions_4,synthetic_manual_v3
+V3_032,"try:
+    fetch()
+except TimeoutError:
+    log()",0,exceptions,exceptions_4,synthetic_manual_v3
+V3_033,result = eval(request_data),1,eval_calls,eval_calls_1,synthetic_manual_v3
+V3_034,result = int(request_data),0,eval_calls,eval_calls_1,synthetic_manual_v3
+V3_035,value = eval(text),1,eval_calls,eval_calls_2,synthetic_manual_v3
+V3_036,value = str(text),0,eval_calls,eval_calls_2,synthetic_manual_v3
+V3_037,parsed = eval(payload),1,eval_calls,eval_calls_3,synthetic_manual_v3
+V3_038,"import json
+parsed = json.loads(payload)",0,eval_calls,eval_calls_3,synthetic_manual_v3
+V3_039,answer = eval(expression),1,eval_calls,eval_calls_4,synthetic_manual_v3
+V3_040,answer = float(expression),0,eval_calls,eval_calls_4,synthetic_manual_v3
