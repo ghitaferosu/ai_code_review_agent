@@ -8,6 +8,9 @@ from backend.services.static_analyzer import analyze_python_code
 
 from backend.services.github_service import get_pull_request_files
 from backend.services.pr_review_service import review_pull_request
+import ast
+from backend.models.ml_models import MLAnalysisRequest,MLAnalysisResponse
+from backend.services.ml_service import predict
 
 app = FastAPI(
     title="AI Code Review Agent",
@@ -102,3 +105,15 @@ async def create_static_review(request: ReviewRequest):
             status_code=502,
             detail=str(e)
         )
+
+
+@app.post("/analysis/ml",response_model=MLAnalysisResponse)
+def analyze_ml(request: MLAnalysisRequest):
+    try:
+        ast.parse(request.code)
+    except SyntaxError as e:
+        raise HTTPException(status_code=422, detail=f"Invalid python syntax at line {e.lineno}")
+    try:
+        return predict(request.code)
+    except OSError:
+        raise HTTPException(status_code=503, detail="ML model is not available")
