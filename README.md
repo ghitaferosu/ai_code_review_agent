@@ -2,7 +2,7 @@
 
 A Python-based code review project that analyzes GitHub pull requests using **static analysis** and experiments with **machine learning** for code-risk classification.
 
-**Status:** Work in progress — static PR review and offline ML experiments are implemented. ML inference is **not yet integrated** into the FastAPI endpoints. This is an educational/portfolio project, **not a production security scanner**.
+**Status:** Work in progress — static analysis, experimental ML inference, hybrid code analysis, and GitHub pull-request hybrid review are implemented in FastAPI (through Lesson 8 of the 12-lesson plan). This is an educational/portfolio project, **not a production security scanner**.
 
 ## What works today
 
@@ -11,7 +11,10 @@ A Python-based code review project that analyzes GitHub pull requests using **st
 - **Python static analysis**: detect selected code patterns such as direct `eval()`, bare `except:`, hardcoded credential-like assignments, and `subprocess` calls with `shell=True`.
 - **PR-level static review**: fetch changed Python files at the PR head commit, analyze their full content, and report issues with filenames.
 - **Offline ML experiments** comparing character-level TF-IDF + Logistic Regression, AST features + Logistic Regression, and a hybrid TF-IDF + AST model.
-- **Synthetic datasets and automated tests** for feature extraction, dataset validation, and model comparisons.
+- **Experimental ML inference API** (`POST /analysis/ml`) using a locally exported TF-IDF + Logistic Regression model trained on synthetic Dataset V3.
+- **Hybrid source analysis** (`POST /analysis/hybrid`): combines static findings and ML classification, with an agreement indicator and readable summary.
+- **Hybrid GitHub PR review** (`POST /reviews/hybrid`): analyzes each changed, non-deleted Python file and returns per-file findings, ML predictions, and totals.
+- **Synthetic datasets and automated tests** for feature extraction, dataset validation, model comparisons, and API behavior.
 
 > The static analyzer implements a limited set of heuristics. A clean result does **not** prove that code is secure. ML labels indicate selected risk patterns, not a complete vulnerability assessment.
 
@@ -26,34 +29,51 @@ A Python-based code review project that analyzes GitHub pull requests using **st
 - pytest
 - joblib for local model serialization
 
-**Planned, not implemented in the current backend:** ML prediction API, more comprehensive evaluation, optional local code LLM, and a frontend/dashboard.
+**Future work:** stronger independent evaluation, risk prioritization, diff-line filtering, optional local code LLM, and a frontend/dashboard.
 
 ## Architecture
 
 ```text
-GitHub pull request
-       |
-       v
-GitHub REST API / file retrieval
-       |
-       v
-Python static analyzer (AST rules)
-       |
-       v
-PR review response (files + issues)
-
-Offline ML experimentation (separate workflow):
-Python snippets
-       |
-       +--> character n-gram TF-IDF ----+
-       |                                |
-       +--> AST feature extraction -----+--> Logistic Regression
-                                                 |
-                                                 v
-                                      Predicted risk label (0 / 1)
+Python snippet --------------------------+
+                                          |
+GitHub pull request -> GitHub REST API    |
+                        |                 |
+                        v                 |
+               Changed Python files      |
+                        |                 |
+                        +-----------------+
+                                          |
+                      +-------------------+------------------+
+                      |                                      |
+                      v                                      v
+             Static analyzer                         TF-IDF V3 classifier
+             (Python AST rules)                      (Logistic Regression)
+                      |                                      |
+                      +-------------------+------------------+
+                                          |
+                                          v
+                              Hybrid analysis report
+                         (findings + ML + agreement)
 ```
 
-The PR review endpoint currently uses the **rule-based static analyzer**; the ML models are trained and evaluated separately.
+The API also retains dedicated static-analysis and ML-analysis endpoints. The deployed ML inference path uses **TF-IDF V3**, not the separately evaluated AST-feature or feature-union hybrid ML estimators. Here, *hybrid review* means combining rule-based static findings and an ML prediction in the response.
+
+```text
+backend/
+  main.py                         # FastAPI endpoints
+  services/
+    static_analyzer.py            # AST-based rules
+    ml_service.py                 # Load and run exported ML model
+    hybrid_review_service.py      # Combine static and ML outputs
+    pr_review_service.py          # Static GitHub PR review
+    hybrid_pr_review_service.py   # Hybrid GitHub PR review
+  models/
+    analysis_models.py            # Static-analysis schemas
+    ml_models.py                  # ML request/response schemas
+    hybrid_models.py              # Hybrid request/response schemas
+  ml/
+    export_model.py               # Train/export local V3 inference artifact
+```
 
 ## Getting started
 
@@ -77,6 +97,15 @@ Install requirements:
 python -m pip install -r requirements.txt
 ```
 
+Generate Dataset V3 (if it is not present) and export the local inference model:
+
+```bash
+python -m backend.ml.generate_dataset_v3
+python -m backend.ml.export_model
+```
+
+The exporter trains the **TF-IDF V3 pipeline on the 40 synthetic V3 samples** and writes `models/code_risk_v3.joblib`. This generated file is excluded from Git. It must be present locally to use `/analysis/ml`, `/analysis/hybrid`, or `/reviews/hybrid`; without it, those endpoints can return HTTP 503. The demonstration model has not been validated as a real-world security scanner.
+
 Start the API from the repository root:
 
 ```bash
@@ -94,6 +123,9 @@ Open **http://127.0.0.1:8000/docs** for Swagger UI.
 | `GET` | `/github/{owner}/{repo}/pulls/{pull_number}/files` | List changed files in a GitHub PR |
 | `POST` | `/analysis/python` | Analyze supplied Python source with static rules |
 | `POST` | `/reviews/static` | Analyze Python files changed in a GitHub PR |
+| `POST` | `/analysis/ml` | Experimental TF-IDF V3 prediction on Python source |
+| `POST` | `/analysis/hybrid` | Combine AST findings and ML prediction on Python source |
+| `POST` | `/reviews/hybrid` | Hybrid review of changed Python files in a GitHub PR |
 
 ### Analyze Python source
 
@@ -111,7 +143,39 @@ curl -X POST http://127.0.0.1:8000/reviews/static \
   -d '{"repository": "fastapi/fastapi", "pull_request_number": 1}'
 ```
 
-The PR-level implementation analyzes the **full content of changed Python files**, not only the added lines in the diff. It currently limits each review to **10 Python files** and **100,000 characters per file**. GitHub API access and repository permissions can affect requests.
+### Experimental ML inference
+
+```bash
+curl -X POST http://127.0.0.1:8000/analysis/ml \
+  -H "Content-Type: application/json" \
+  -d '{"code": "result = eval(user_input)"}'
+```
+
+Response fields: `prediction` (0 or 1), `label` (`not_risky` or `risky`), `risk_probability` (the model's score for class 1), and `model` (`tfidf_v3`). **The score is not a calibrated real-world vulnerability probability.**
+
+### Hybrid analysis of a Python snippet
+
+```bash
+curl -X POST http://127.0.0.1:8000/analysis/hybrid \
+  -H "Content-Type: application/json" \
+  -d '{"code": "password = \"demo_value\"\nresult = eval(user_input)"}'
+```
+
+Returns `static_analysis` (language, issue count and issue list), `ml_analysis`, `agreement`, and `summary`. The `agreement` boolean compares whether **any** static issue was found to whether ML predicts class 1. It is *not* a correctness or confidence measure, and even maintainability findings count toward this simple comparison.
+
+### Hybrid review of a GitHub pull request
+
+```bash
+curl -X POST http://127.0.0.1:8000/reviews/hybrid \
+  -H "Content-Type: application/json" \
+  -d '{"repository": "OWNER/REPO", "pull_request_number": 1}'
+```
+
+Replace `OWNER/REPO` and the PR number with an accessible repository and pull request. The response includes `repository`, `pull_request_number`, `commit_sha`, `analyzed_files`, `issues_count`, and `files`. Each file entry contains a filename and its static/ML hybrid report. A PR with no matching Python files returns `files: []` and zero counts.
+
+The PR-level implementations analyze the **full content of changed, non-deleted Python files** at the PR head commit, not only added lines in the diff. They limit each review to **10 Python files** and **100,000 characters per file**. Findings can therefore refer to pre-existing lines. GitHub API access, rate limits, and repository permissions can affect requests.
+
+Invalid Python syntax returns HTTP 422 for snippet ML/hybrid endpoints. Model-file access errors can return HTTP 503; PR review also reports validation and GitHub API failures.
 
 ## Machine learning experiments
 
@@ -200,8 +264,10 @@ Generated model files may be excluded from version control. Only load `joblib` a
 - [x] Initial labeled synthetic dataset and TF-IDF baseline
 - [x] AST and hybrid ML experiments, error analysis, grouped Dataset V3
 - [ ] Train and select a model using a stronger evaluation protocol and independent test data
-- [ ] Expose experimental ML inference through FastAPI
-- [ ] Combine static findings and ML signals into a review report
+- [x] Expose experimental TF-IDF V3 ML inference through FastAPI
+- [x] Combine static findings and ML signals in a hybrid snippet report
+- [x] Extend hybrid analysis to GitHub pull requests (Lesson 8)
+- [ ] Add risk scoring and prioritization (Lesson 9)
 - [ ] Improve coverage, error handling, tests, and documentation
 - [ ] Optional: local open-weight code LLM and user interface
 
