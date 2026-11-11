@@ -11,6 +11,9 @@ from backend.services.pr_review_service import review_pull_request
 import ast
 from backend.models.ml_models import MLAnalysisRequest,MLAnalysisResponse
 from backend.services.ml_service import predict
+from backend.models.hybrid_models import HybridAnalysisRequest,HybridAnalysisResponse
+from backend.services.hybrid_review_service import analyze_hybrid_code
+from backend.services.hybrid_pr_review_service import review_pull_request_hybrid
 
 app = FastAPI(
     title="AI Code Review Agent",
@@ -44,7 +47,7 @@ async def list_pr_files(owner: str, repo: str, pull_number: int):
             "files_count": len(files),
             "files": files
         }
-    except httpx.HTTPError as e:
+    except httpx.HTTPStatusError as e:
         status=e.response.status_code
 
         raise HTTPException(
@@ -117,3 +120,35 @@ def analyze_ml(request: MLAnalysisRequest):
         return predict(request.code)
     except OSError:
         raise HTTPException(status_code=503, detail="ML model is not available")
+
+@app.post("/analysis/hybrid",response_model=HybridAnalysisResponse)
+def analyze_hybrid(request: HybridAnalysisRequest):
+    try:
+        ast.parse(request.code)
+    except SyntaxError as e:
+        raise HTTPException(status_code=422, detail=f"Invalid python syntax at line {e.lineno}")
+
+    try:
+        return analyze_hybrid_code(request.code)
+    except OSError:
+        raise HTTPException(status_code=503, detail="Hybrid model is not available")
+
+
+@app.post("/reviews/hybrid")
+async def create_hybrid_pr_review(request:ReviewRequest):
+    parts=request.repository.split("/")
+    if len(parts) != 2 or not all(parts) or request.pull_request_number<1:
+        raise HTTPException(status_code=400, detail="Expected owner/repository and positive PR number")
+    owner, repo = parts
+
+    try:
+        return await review_pull_request_hybrid(owner, repo, request.pull_request_number)
+    except httpx.HTTPStatusError as e:
+        status=e.response.status_code
+        raise HTTPException(status_code=status if status in (403,404,429) else 502,detail="GitHub API request failed")
+    except httpx.RequestError:
+        raise HTTPException(status_code=502,detail="Could not connect to GitHub API")
+    except (ValueError, UnicodeDecodeError) as e:
+        raise HTTPException(status_code=422,detail=str(e))
+    except OSError:
+        raise HTTPException(status_code=503,detail="Hybrid model is not available")
