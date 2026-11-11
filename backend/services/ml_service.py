@@ -12,15 +12,15 @@ def load_model():
 
 def predict(code):
     model = load_model()
-    prediction = model.predict([code])[0]
+    prediction=int(model.predict([code])[0])
     probabilities=model.predict_proba([code])[0]
     classes=list(model.classes_)
     risky_index=classes.index(1)
-    risk_probability=probabilities[risky_index]
+    risk_probability=float(probabilities[risky_index])
     return {
         "prediction": prediction,
         "label":(
-            "risky" if prediction==1 else "not risky"
+            "risky" if prediction==1 else "not_risky"
         ),
         "risk_probability": round(risk_probability,3),
         "model":"tfidf_v3"
