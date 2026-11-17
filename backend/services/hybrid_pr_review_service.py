@@ -31,6 +31,8 @@ async def review_pull_request_hybrid(owner,repo,pull_number):
             **analysis
         })
 
+    results.sort(key=lambda i: i["risk"]["score"],reverse=True)
+
     return {
             "repository":f"{owner}/{repo}",
             "pull_request_number":pull_number,

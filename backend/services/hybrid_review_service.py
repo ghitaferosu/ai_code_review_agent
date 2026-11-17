@@ -1,5 +1,6 @@
 from backend.services.static_analyzer import analyze_python_code
 from backend.services.ml_service import predict
+from backend.services.risk_scoring_service import calculate_risk
 
 def analyze_hybrid_code(code):
     issues=analyze_python_code(code)
@@ -22,6 +23,8 @@ def analyze_hybrid_code(code):
     else:
         summary="No issues found by current static rules and ML predicted the not_risky class"
 
+    risk=calculate_risk(issues,ml_result)
+
     return {
         "static_analysis":{
             "language":"python",
@@ -30,5 +33,6 @@ def analyze_hybrid_code(code):
         },
         "ml_analysis":ml_result,
         "agreement":agreement,
-        "summary":summary
+        "summary":summary,
+        "risk":risk
     }
