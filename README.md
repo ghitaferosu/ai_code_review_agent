@@ -2,7 +2,7 @@
 
 A Python-based code review project that analyzes GitHub pull requests using **static analysis** and experiments with **machine learning** for code-risk classification.
 
-**Status:** Work in progress — static analysis, experimental ML inference, hybrid code analysis, and GitHub pull-request hybrid review are implemented in FastAPI (through Lesson 8 of the 12-lesson plan). This is an educational/portfolio project, **not a production security scanner**.
+**Status:** Work in progress — static analysis, experimental ML inference, hybrid code analysis, and GitHub pull-request hybrid review are implemented in FastAPI (through Lesson 9 of the 12-lesson plan). This is an educational/portfolio project, **not a production security scanner**.
 
 ## What works today
 
@@ -13,7 +13,8 @@ A Python-based code review project that analyzes GitHub pull requests using **st
 - **Offline ML experiments** comparing character-level TF-IDF + Logistic Regression, AST features + Logistic Regression, and a hybrid TF-IDF + AST model.
 - **Experimental ML inference API** (`POST /analysis/ml`) using a locally exported TF-IDF + Logistic Regression model trained on synthetic Dataset V3.
 - **Hybrid source analysis** (`POST /analysis/hybrid`): combines static findings and ML classification, with an agreement indicator and readable summary.
-- **Hybrid GitHub PR review** (`POST /reviews/hybrid`): analyzes each changed, non-deleted Python file and returns per-file findings, ML predictions, and totals.
+- **Hybrid GitHub PR review** (`POST /reviews/hybrid`): analyzes each changed, non-deleted Python file and returns per-file findings, ML predictions, risk scores, and totals. Files are sorted by descending risk score.
+- **Heuristic risk scoring (Lesson 9)**: severity-weighted static findings plus an experimental ML classification signal, producing a bounded 0–100 score and a low/medium/high/critical priority.
 - **Synthetic datasets and automated tests** for feature extraction, dataset validation, model comparisons, and API behavior.
 
 > The static analyzer implements a limited set of heuristics. A clean result does **not** prove that code is secure. ML labels indicate selected risk patterns, not a complete vulnerability assessment.
@@ -29,7 +30,7 @@ A Python-based code review project that analyzes GitHub pull requests using **st
 - pytest
 - joblib for local model serialization
 
-**Future work:** stronger independent evaluation, risk prioritization, diff-line filtering, optional local code LLM, and a frontend/dashboard.
+**Future work:** stronger independent evaluation, diff-line filtering, optional local code LLM, and a frontend/dashboard.
 
 ## Architecture
 
@@ -53,7 +54,10 @@ GitHub pull request -> GitHub REST API    |
                                           |
                                           v
                               Hybrid analysis report
-                         (findings + ML + agreement)
+                    (findings + ML + agreement + risk)
+                                          |
+                                          v
+                          Risk-based PR file ordering
 ```
 
 The API also retains dedicated static-analysis and ML-analysis endpoints. The deployed ML inference path uses **TF-IDF V3**, not the separately evaluated AST-feature or feature-union hybrid ML estimators. Here, *hybrid review* means combining rule-based static findings and an ML prediction in the response.
@@ -66,7 +70,8 @@ backend/
     ml_service.py                 # Load and run exported ML model
     hybrid_review_service.py      # Combine static and ML outputs
     pr_review_service.py          # Static GitHub PR review
-    hybrid_pr_review_service.py   # Hybrid GitHub PR review
+    hybrid_pr_review_service.py   # Hybrid GitHub PR review and sorting
+    risk_scoring_service.py       # Heuristic 0-100 risk scoring
   models/
     analysis_models.py            # Static-analysis schemas
     ml_models.py                  # ML request/response schemas
@@ -124,8 +129,8 @@ Open **http://127.0.0.1:8000/docs** for Swagger UI.
 | `POST` | `/analysis/python` | Analyze supplied Python source with static rules |
 | `POST` | `/reviews/static` | Analyze Python files changed in a GitHub PR |
 | `POST` | `/analysis/ml` | Experimental TF-IDF V3 prediction on Python source |
-| `POST` | `/analysis/hybrid` | Combine AST findings and ML prediction on Python source |
-| `POST` | `/reviews/hybrid` | Hybrid review of changed Python files in a GitHub PR |
+| `POST` | `/analysis/hybrid` | Combine AST findings, ML prediction, and heuristic risk score |
+| `POST` | `/reviews/hybrid` | Hybrid review of changed Python files, ordered by risk score |
 
 ### Analyze Python source
 
@@ -161,7 +166,7 @@ curl -X POST http://127.0.0.1:8000/analysis/hybrid \
   -d '{"code": "password = \"demo_value\"\nresult = eval(user_input)"}'
 ```
 
-Returns `static_analysis` (language, issue count and issue list), `ml_analysis`, `agreement`, and `summary`. The `agreement` boolean compares whether **any** static issue was found to whether ML predicts class 1. It is *not* a correctness or confidence measure, and even maintainability findings count toward this simple comparison.
+Returns `static_analysis` (language, issue count and issue list), `ml_analysis`, `agreement`, `summary`, and `risk` (score, priority, static_score, ml_score). The `agreement` boolean compares whether **any** static issue was found to whether ML predicts class 1. It is *not* a correctness or confidence measure, and even maintainability findings count toward this simple comparison.
 
 ### Hybrid review of a GitHub pull request
 
@@ -171,11 +176,35 @@ curl -X POST http://127.0.0.1:8000/reviews/hybrid \
   -d '{"repository": "OWNER/REPO", "pull_request_number": 1}'
 ```
 
-Replace `OWNER/REPO` and the PR number with an accessible repository and pull request. The response includes `repository`, `pull_request_number`, `commit_sha`, `analyzed_files`, `issues_count`, and `files`. Each file entry contains a filename and its static/ML hybrid report. A PR with no matching Python files returns `files: []` and zero counts.
+Replace `OWNER/REPO` and the PR number with an accessible repository and pull request. The response includes `repository`, `pull_request_number`, `commit_sha`, `analyzed_files`, `issues_count`, and `files`. Each file entry contains a filename, its static/ML hybrid report, and its heuristic risk score. Files are sorted by descending risk score. A PR with no matching Python files returns `files: []` and zero counts.
 
 The PR-level implementations analyze the **full content of changed, non-deleted Python files** at the PR head commit, not only added lines in the diff. They limit each review to **10 Python files** and **100,000 characters per file**. Findings can therefore refer to pre-existing lines. GitHub API access, rate limits, and repository permissions can affect requests.
 
 Invalid Python syntax returns HTTP 422 for snippet ML/hybrid endpoints. Model-file access errors can return HTTP 503; PR review also reports validation and GitHub API failures.
+
+## Risk scoring and prioritization (Lesson 9)
+
+Hybrid analysis computes a **heuristic 0–100 triage score**, not a calibrated probability that code is vulnerable. The current rule weights are:
+
+| Static finding severity | Points per finding |
+| --- | ---: |
+| Low | 5 |
+| Medium | 15 |
+| High | 30 |
+| Critical | 50 |
+
+Static findings contribute at most **80** points. An ML prediction of class `risky` adds **20** points; a `not_risky` prediction adds **0**. The model's `risk_probability` is **not** multiplied into this score, because it has not been calibrated for real-world vulnerability likelihood. The total is capped at 100.
+
+| Total score | Priority |
+| --- | --- |
+| 0–19 | low |
+| 20–49 | medium |
+| 50–79 | high |
+| 80–100 | critical |
+
+For example, two high-severity static findings and an ML `risky` classification yield `static_score: 60`, `ml_score: 20`, `score: 80`, and `priority: critical`.
+
+`POST /analysis/hybrid` returns the `risk` object for a snippet. `POST /reviews/hybrid` includes the same object for each analyzed Python file and **sorts files by descending score**. Ties retain their original relative order. This ordering is for review prioritization only; the analysis examines full changed-file contents, so a finding may predate the pull request. A low score does not imply the code is safe, and a high score is not proof of an exploitable vulnerability.
 
 ## Machine learning experiments
 
@@ -267,7 +296,7 @@ Generated model files may be excluded from version control. Only load `joblib` a
 - [x] Expose experimental TF-IDF V3 ML inference through FastAPI
 - [x] Combine static findings and ML signals in a hybrid snippet report
 - [x] Extend hybrid analysis to GitHub pull requests (Lesson 8)
-- [ ] Add risk scoring and prioritization (Lesson 9)
+- [x] Add heuristic risk scoring and PR file prioritization (Lesson 9)
 - [ ] Improve coverage, error handling, tests, and documentation
 - [ ] Optional: local open-weight code LLM and user interface
 
