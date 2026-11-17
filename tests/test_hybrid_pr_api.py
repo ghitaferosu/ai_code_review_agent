@@ -38,6 +38,12 @@ def fake_hybrid_analysis(code):
         },
         "agreement": True,
         "summary": "Test analysis",
+        "risk": {
+            "score": 80 if risky else 0,
+            "priority": "critical" if risky else "low",
+            "static_score": 60 if risky else 0,
+            "ml_score": 20 if risky else 0
+        }
     }
 
 
@@ -162,3 +168,89 @@ def test_hybrid_pr_too_many_files(monkeypatch):
     )
 
     assert response.status_code == 422
+
+
+def test_hybrid_pr_files_sorted_by_risk(monkeypatch):
+    files = [
+        {"filename": "safe.py", "status": "modified"},
+        {"filename": "critical.py", "status": "modified"},
+        {"filename": "medium.py", "status": "modified"},
+    ]
+
+    monkeypatch.setattr(
+        service,
+        "get_pull_request_files",
+        AsyncMock(return_value=files),
+    )
+
+    monkeypatch.setattr(
+        service,
+        "get_pull_request_head",
+        AsyncMock(return_value="abc123"),
+    )
+
+    async def fake_get_content(owner, repo, filename, sha):
+        return filename
+
+    monkeypatch.setattr(
+        service,
+        "get_file_content",
+        fake_get_content,
+    )
+
+    def fake_analysis(code):
+        scores = {
+            "safe.py": (0, "low"),
+            "critical.py": (80, "critical"),
+            "medium.py": (20, "medium"),
+        }
+
+        score, priority = scores[code]
+
+        return {
+            "static_analysis": {
+                "language": "python",
+                "issues_count": 0,
+                "issues": [],
+            },
+            "ml_analysis": {
+                "prediction": 0,
+                "label": "not_risky",
+                "risk_probability": 0.2,
+                "model": "tfidf_v3",
+            },
+            "agreement": True,
+            "summary": "Test analysis",
+            "risk": {
+                "score": score,
+                "priority": priority,
+                "static_score": score,
+                "ml_score": 0,
+            },
+        }
+
+    monkeypatch.setattr(
+        service,
+        "analyze_hybrid_code",
+        fake_analysis,
+    )
+
+    response = client.post(
+        "/reviews/hybrid",
+        json={
+            "repository": "owner/repo",
+            "pull_request_number": 1,
+        },
+    )
+
+    assert response.status_code == 200
+
+    result = response.json()
+
+    filenames = [file["filename"] for file in result["files"]]
+
+    assert filenames == [
+        "critical.py",
+        "medium.py",
+        "safe.py",
+    ]
